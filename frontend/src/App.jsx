@@ -1,53 +1,130 @@
-﻿import { useState } from 'react'
+﻿import { useMemo, useState } from 'react'
+import {
+  BellRing,
+  BookOpenCheck,
+  CalendarDays,
+  FileSpreadsheet,
+  FileText,
+  Headphones,
+  IndianRupee,
+  LayoutGrid,
+  Palette,
+  School,
+  Settings2,
+  UserCog,
+  Users
+} from 'lucide-react'
+import AttendanceView from './components/modules/AttendanceView'
+import AlertsView from './components/modules/AlertsView'
+import DashboardView from './components/modules/DashboardView'
+import FeesView from './components/modules/FeesView'
+import HolidaysView from './components/modules/HolidaysView'
+import MarksResultsView from './components/modules/MarksResultsView'
+import ReportsView from './components/modules/ReportsView'
+import StudentsView from './components/modules/StudentsView'
+import TestsKioskView from './components/modules/TestsKioskView'
+import TimetableView from './components/modules/TimetableView'
+import { FilterProvider } from './context/FilterContext'
 
-const BASE = 'http://127.0.0.1:8000/api/v1'
+const navItems = [
+  { key: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
+  { key: 'attendance', label: 'Attendance', icon: Users },
+  { key: 'marks', label: 'Marks & Results', icon: FileText },
+  { key: 'reports', label: 'Reports', icon: FileSpreadsheet },
+  { key: 'tests', label: 'Tests (Kiosk)', icon: BookOpenCheck },
+  { key: 'students', label: 'Students', icon: School },
+  { key: 'parents', label: 'Parents', icon: UserCog },
+  { key: 'timetable', label: 'Timetable', icon: CalendarDays },
+  { key: 'holidays', label: 'Holidays', icon: Palette },
+  { key: 'fees', label: 'Fees', icon: IndianRupee },
+  { key: 'alerts', label: 'Alerts & Notifications', icon: BellRing },
+  { key: 'settings', label: 'Settings', icon: Settings2 }
+]
+
+function PlaceholderView({ title }) {
+  return (
+    <section className="module-page">
+      <header className="module-header panel">
+        <div>
+          <h2>{title}</h2>
+          <p>This section can be expanded with workflows and data integrations.</p>
+        </div>
+      </header>
+      <article className="panel empty-panel">
+        <h3>{title} module is ready for backend integration.</h3>
+        <p>Use the same card, chart, and table patterns used across the other implemented modules.</p>
+      </article>
+    </section>
+  )
+}
 
 export default function App() {
-  const [studentId, setStudentId] = useState('1')
-  const [message, setMessage] = useState('Show attendance')
-  const [output, setOutput] = useState('')
+  const [activeModule, setActiveModule] = useState('dashboard')
 
-  const call = async (path, options) => {
-    try {
-      const res = await fetch(`${BASE}${path}`, options)
-      const text = await res.text()
-      setOutput(`Status: ${res.status}\n\n${text}`)
-    } catch (err) {
-      setOutput(`Request failed: ${err}`)
+  const activeView = useMemo(() => {
+    switch (activeModule) {
+      case 'attendance':
+        return <AttendanceView />
+      case 'marks':
+        return <MarksResultsView />
+      case 'reports':
+        return <ReportsView />
+      case 'tests':
+        return <TestsKioskView />
+      case 'students':
+      case 'parents':
+        return <StudentsView onNavigate={setActiveModule} />
+      case 'timetable':
+        return <TimetableView />
+      case 'holidays':
+        return <HolidaysView />
+      case 'fees':
+        return <FeesView />
+      case 'alerts':
+        return <AlertsView />
+      case 'settings':
+        return <PlaceholderView title="Settings" />
+      default:
+        return <DashboardView />
     }
-  }
+  }, [activeModule])
 
   return (
-    <main className="shell">
-      <h1>WhatsApp Assistant React Console</h1>
-      <p>This is an optional React control panel. Official user channel remains WhatsApp webhook.</p>
-
-      <section className="card">
-        <label>Student ID</label>
-        <input value={studentId} onChange={(e) => setStudentId(e.target.value)} />
-        <div className="row">
-          <button onClick={() => call(`/attendance/${studentId}`)}>Get Attendance</button>
-          <button onClick={() => call(`/generate-report/${studentId}`)}>Generate Report</button>
+    <FilterProvider>
+      <div className="dashboard-layout">
+        <aside className="sidebar">
+        <div className="brand-block">
+          <div className="logo-placeholder" aria-hidden="true">
+            V
+          </div>
+          <div>
+            <h1>VNR Smart School</h1>
+            <p>Excellence in Education</p>
+          </div>
         </div>
-      </section>
 
-      <section className="card">
-        <label>Simulate Webhook Message</label>
-        <input value={message} onChange={(e) => setMessage(e.target.value)} />
-        <button
-          onClick={() =>
-            call('/webhook', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: new URLSearchParams({ From: 'whatsapp:+919900000001', Body: message })
-            })
-          }
-        >
-          Send to /webhook
-        </button>
-      </section>
+        <nav className="nav-list" aria-label="Main Navigation">
+          {navItems.map(({ key, label, icon: Icon }) => (
+            <button
+              key={label}
+              className={`nav-item ${activeModule === key ? 'active' : ''}`}
+              type="button"
+              onClick={() => setActiveModule(key)}
+            >
+              <Icon size={18} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
 
-      <pre className="output">{output || 'Output will appear here...'}</pre>
-    </main>
+        <div className="support-card">
+          <Headphones size={20} />
+          <span>Need Help? Contact Support</span>
+        </div>
+        </aside>
+
+        <main className="main-content">{activeView}</main>
+      </div>
+    </FilterProvider>
   )
 }
