@@ -1,92 +1,87 @@
-# WhatsApp AI School Assistant Backend (FastAPI)
+# WhatsApp AI School Assistant Backend
 
-Production-ready modular FastAPI backend for an agentic AI School Assistant with:
+This project is WhatsApp-first. The official user interaction channel is Twilio WhatsApp webhook messaging through the backend API.
 
-- Reactive WhatsApp Q&A
-- Proactive daily/weekly messaging
-- Attendance analytics
-- Result and report analytics
-- Matplotlib graph generation
-- PDF report generation with fpdf
-- OCR + RAG document understanding
-- Test generation/submission/evaluation pipeline
-- Gemini-based insights and intent detection
-- Supabase-ready DB/storage integrations
+Features implemented:
+- Reactive WhatsApp query handling
+- Attendance and report endpoints
+- Graph generation and PDF generation
+- OCR and document Q and A baseline
+- Test generation and submission baseline
+- Supabase-compatible SQL scripts
 
 ## Tech Stack
 
 - FastAPI
-- PostgreSQL (Supabase-compatible via SQLAlchemy)
-- Gemini API (`google-generativeai`)
+- PostgreSQL and Supabase
+- Gemini API
 - Twilio WhatsApp API
 - matplotlib
 - fpdf2
 - pytesseract
-- Supabase storage client
 
 ## Project Structure
 
-- app/services/
-  - attendance_service.py
-  - report_service.py
-  - graph_service.py
-  - ai_service.py
-  - alert_service.py
-  - rag_service.py
-  - ocr_service.py
-  - whatsapp_service.py
-  - test_service.py
-  - orchestrator_service.py
-- app/routes/
-- app/db/
-- app/models/
-- app/utils/
+- [backend](backend)
+  - [backend/routes](backend/routes)
+  - [backend/services](backend/services)
+  - [backend/agents](backend/agents)
+  - [backend/utils](backend/utils)
+- [database](database)
+  - [database/01_tables.sql](database/01_tables.sql)
+  - [database/03_migrations.sql](database/03_migrations.sql)
+  - [database/02_indexes.sql](database/02_indexes.sql)
+  - [database/04_extra.sql](database/04_extra.sql)
+- [reports](reports)
+- [ai](ai)
+- [rag](rag)
 
-## Required Endpoints
+## Official Interaction Flow
 
-- `POST /api/v1/webhook`
-- `GET /api/v1/attendance/{student_id}`
-- `GET /api/v1/generate-report/{student_id}`
-- `POST /api/v1/start-test`
-- `POST /api/v1/submit-test`
-- `POST /api/v1/upload-document`
-- `POST /api/v1/ask-document`
-- `GET /api/v1/send-daily-report`
-- `GET /api/v1/send-weekly-report`
+Official frontend channel:
+- WhatsApp message from parent or student
+- Twilio forwards webhook request to backend endpoint
+- Backend processes intent and responds via Twilio
+
+Official webhook endpoint:
+- POST /api/v1/webhook
+
+## API Endpoints
+
+- POST /api/v1/webhook
+- GET /api/v1/attendance/{student_id}
+- GET /api/v1/generate-report/{student_id}
+- POST /api/v1/start-test
+- POST /api/v1/submit-test
+- POST /api/v1/ask-document
 
 ## Setup
 
-1. Create and activate a virtual environment.
-2. Install dependencies:
+1. Create a virtual environment and install dependencies.
+2. Fill environment values in [.env](.env).
+3. Run backend:
+  uvicorn backend.main:app --host 127.0.0.1 --port 8000
+4. Verify docs at http://127.0.0.1:8000/docs
 
-```bash
-pip install -r requirements.txt
-```
+## Twilio WhatsApp Setup
 
-3. Copy `.env.example` to `.env` and fill values.
-4. Run the API:
+1. Create Twilio account and open WhatsApp Sandbox.
+2. Put these values in [.env](.env):
+  - TWILIO_ACCOUNT_SID
+  - TWILIO_AUTH_TOKEN
+  - TWILIO_WHATSAPP_NUMBER
+3. Expose local backend to internet using ngrok:
+  ngrok http 8000
+4. In Twilio Sandbox settings, set incoming webhook URL to:
+  https://your-ngrok-domain/api/v1/webhook
+5. Join sandbox from your phone using Twilio join code.
+6. Send WhatsApp messages and verify replies from backend.
 
-```bash
-uvicorn app.main:app --reload
-```
+## Database Setup
 
-5. Open docs at `http://localhost:8000/docs`.
+Run SQL files in this order in Supabase SQL Editor:
+1. [database/01_tables.sql](database/01_tables.sql)
+2. [database/03_migrations.sql](database/03_migrations.sql)
+3. [database/02_indexes.sql](database/02_indexes.sql)
+4. Optional extras: [database/04_extra.sql](database/04_extra.sql)
 
-## Database Tables
-
-Implemented tables:
-
-- `user`
-- `parent_student_link`
-- `classroom`
-- `class_session`
-- `attendance`
-- `assignment_submission`
-- `documents`
-- `tests`
-
-## Notes
-
-- `AUTO_SEED=true` inserts dummy parent/student, sessions, attendance, and assignment data for testing.
-- Twilio/Gemini/Supabase are optional at runtime; if keys are missing, safe fallback behavior is used.
-- OCR requires Tesseract installed on the host machine; set `TESSERACT_CMD` if needed.

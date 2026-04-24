@@ -11,6 +11,7 @@ def build_pdf_report(payload: dict, report_type: str) -> str:
 
     pdf = FPDF()
     pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_font("Helvetica", "B", 16)
     pdf.cell(0, 10, f"{report_type}", ln=True)
 
@@ -19,10 +20,15 @@ def build_pdf_report(payload: dict, report_type: str) -> str:
     trend_percentage = payload.get("trend_percentage", 0.0)
 
     pdf.set_font("Helvetica", size=11)
+    pdf.set_x(pdf.l_margin)
     pdf.multi_cell(0, 8, f"Generated: {datetime.utcnow().isoformat()} UTC")
+    pdf.set_x(pdf.l_margin)
     pdf.multi_cell(0, 8, f"Attendance: {attendance_percentage}%")
+    pdf.set_x(pdf.l_margin)
     pdf.multi_cell(0, 8, f"Marks: {marks_percentage}%")
+    pdf.set_x(pdf.l_margin)
     pdf.multi_cell(0, 8, f"Trend: {trend_percentage}%")
+    pdf.set_x(pdf.l_margin)
     pdf.multi_cell(0, 8, f"Insight: {payload['insight']}")
 
     pdf.ln(4)
@@ -30,6 +36,7 @@ def build_pdf_report(payload: dict, report_type: str) -> str:
     pdf.cell(0, 8, "Alerts", ln=True)
     pdf.set_font("Helvetica", size=11)
     for alert in payload.get("alerts", []):
+        pdf.set_x(pdf.l_margin)
         pdf.multi_cell(0, 8, f"- {alert}")
 
     pdf.add_page()
