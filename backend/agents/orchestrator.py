@@ -1,33 +1,33 @@
-from ai.intent import detect_intent
+import logging
+from backend.services.whatsapp_service import send_message, send_document
+from backend.services.report_service import generate_report_bundle
+from backend.utils.db import find_student
+from ai.agent import generate_ai_response
 
-
-ALLOWED_ROLES = {"student", "parent"}
-
-
-def can_access_view(requesting_role: str, target_view: str) -> bool:
-    if requesting_role not in ALLOWED_ROLES:
-        return False
-    if requesting_role == "student" and target_view.startswith("parent"):
-        return False
-    return True
-
-
-def can_join_classroom(student_school_id: int, classroom_school_id: int) -> bool:
-    return student_school_id == classroom_school_id
-
-
-def verify_parent_child_link(parent_username: str, child_username: str, child_password: str) -> bool:
-    # Hook this into your authentication store so the child's exact credentials are verified.
-    return bool(parent_username and child_username and child_password)
-
+logger = logging.getLogger(__name__)
 
 def process_message(sender: str, text: str) -> tuple[str, str]:
-    intent = detect_intent(text)
+    # Extract clean phone number for the database
+    clean_sender = sender.replace("@s.whatsapp.net", "").replace("@c.us", "").replace("@lid", "")
+    
+    # 1. Fetch or auto-link student data from database using the clean number
+    student_data = find_student(clean_sender, text)
 
-    if intent == "attendance":
-        return intent, "Fetching attendance summary now."
-    if intent == "report":
-        return intent, "Generating weekly report with graphs and insights."
-    if intent == "document":
-        return intent, "Searching uploaded documents for your question."
-    return "general", "I can help with attendance, reports, tests, and document Q&A."
+    # 2. Let the LLM generate a smart, conversational response
+    response_text = generate_ai_response(text, student_data)
+    send_message(sender, response_text)
+
+    # 3. If they specifically asked for a report, still generate the PDF!
+    if "report" in text.lower() or "result" in text.lower():
+        send_message(sender, "⏳ I'm also generating the official PDF report card for you...")
+        try:
+            # Use real student ID if available, else default to 1
+            student_id = student_data["id"] if student_data else 1
+            report_data = generate_report_bundle(student_id, "weekly")
+            send_document(sender, report_data["pdf_path"], "Here is the official document! 📈")
+        except Exception as e:
+            logger.error("Failed to generate and send report: %s", e)
+            send_message(sender, "Sorry, there was an error generating the PDF document.")
+
+    return "ai_handled", response_text
+

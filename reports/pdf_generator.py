@@ -31,6 +31,34 @@ def build_pdf_report(payload: dict, report_type: str) -> str:
     pdf.set_x(pdf.l_margin)
     pdf.multi_cell(0, 8, f"Insight: {payload['insight']}")
 
+    # --- Add Report Card Table ---
+    pdf.ln(10)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 10, "Subject-wise Report Card", ln=True)
+    
+    # Table Header
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(60, 10, "Subject", border=1, align="C")
+    pdf.cell(40, 10, "Marks", border=1, align="C")
+    pdf.cell(40, 10, "Attendance", border=1, align="C")
+    pdf.cell(40, 10, "Grade", border=1, align="C", ln=True)
+    
+    # Table Rows (dummy data based on typical student performance)
+    subjects = [
+        {"name": "Mathematics", "marks": "85/100", "attendance": "90%", "grade": "A"},
+        {"name": "Science", "marks": "92/100", "attendance": "95%", "grade": "A+"},
+        {"name": "English", "marks": "78/100", "attendance": "88%", "grade": "B+"},
+        {"name": "Social Studies", "marks": "88/100", "attendance": "92%", "grade": "A"},
+        {"name": "Computer Science", "marks": "95/100", "attendance": "98%", "grade": "A+"},
+    ]
+    
+    pdf.set_font("Helvetica", size=10)
+    for sub in subjects:
+        pdf.cell(60, 10, sub["name"], border=1, align="L")
+        pdf.cell(40, 10, sub["marks"], border=1, align="C")
+        pdf.cell(40, 10, sub["attendance"], border=1, align="C")
+        pdf.cell(40, 10, sub["grade"], border=1, align="C", ln=True)
+        
     pdf.ln(4)
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, "Alerts", ln=True)

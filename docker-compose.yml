@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  evolution-api:
+    image: atendai/evolution-api:v2.2.3    # v2 — uses Supabase PostgreSQL
+    container_name: evolution-api
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - evolution_instances:/evolution/instances
+    environment:
+      SERVER_URL: "http://localhost:8080"
+
+      # ── Supabase PostgreSQL ──────────────────────────────────────────────
+      DATABASE_PROVIDER: "postgresql"
+      DATABASE_URL: "${SUPABASE_DB_URL}"
+      DATABASE_CONNECTION_URI: "${SUPABASE_DB_URL}"
+      DATABASE_CONNECTION_CLIENT_NAME: "evolution_api"
+
+      # ── Auth ─────────────────────────────────────────────────────────────
+      AUTHENTICATION_TYPE: "apikey"
+      AUTHENTICATION_API_KEY: "${EVOLUTION_API_KEY}"
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
+
+      # ── CORS ─────────────────────────────────────────────────────────────
+      CORS_ORIGIN: "*"
+      CORS_CREDENTIALS: "true"
+
+      # ── Instance ─────────────────────────────────────────────────────────
+      DEL_INSTANCE: "false"
+      QRCODE_LIMIT: "30"
+
+volumes:
+  evolution_instances:
