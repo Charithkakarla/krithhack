@@ -125,6 +125,8 @@ button:disabled,
   background: linear-gradient(145deg, #4c74ff 0%, #8ca8ff 100%);
   color: #fff;
   font-weight: 800;
+  font-size: 0.7rem;
+  letter-spacing: 0.5px;
   box-shadow: 0 10px 20px rgba(43, 93, 255, 0.3);
 }
 
@@ -1367,6 +1369,63 @@ tbody td {
   padding-bottom: 14px;
 }
 
+.tracking-header {
+  position: relative;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.student-picker-wrap-right {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.student-picker-trigger {
+  white-space: nowrap;
+  min-width: 132px;
+  padding-inline: 14px;
+}
+
+.student-picker-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 25;
+  width: min(360px, 80vw);
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  border-radius: 14px;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.16);
+  animation: fade-up 0.18s ease-out;
+}
+
+.student-picker-option {
+  width: 100%;
+  border: 1px solid #d9e4f3;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.student-picker-option:hover {
+  background: #f7fbff;
+  border-color: #bfd0ea;
+}
+
+.student-picker-option.active {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
 .whatsapp-layout {
   padding: 10px 14px;
   display: grid;
@@ -1443,6 +1502,22 @@ tbody td {
   color: #991b1b;
 }
 
+.popup-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  background: linear-gradient(135deg, rgba(240, 253, 244, 0.98) 0%, rgba(219, 234, 254, 0.98) 100%);
+  color: #14532d;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  font-weight: 700;
+  animation: toast-enter 0.22s ease-out;
+}
+
 .results-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1500,6 +1575,18 @@ tbody td {
 .segmented button.active {
   background: #2563eb;
   color: #fff;
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .quick-action-row {

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { CheckCircle2, Link2, Send, Smartphone } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { CheckCircle2, Link2, Send } from 'lucide-react'
 import { useFilters } from '../../context/FilterContext'
 import { startStudentTest } from '../../services/studentApi'
 
@@ -14,42 +14,121 @@ const subjects = [
   'Computer Science'
 ]
 
-const studentsAttempting = [
-  { name: 'Aarav Sharma', status: 'In Progress' },
-  { name: 'Ananya Rao', status: 'Completed' },
-  { name: 'Rahul Mehta', status: 'Not Started' },
-  { name: 'Sneha Kapoor', status: 'In Progress' }
-]
+const studentStatuses = ['In Progress', 'Completed', 'Not Started', 'In Progress']
 
 export default function TestsKioskView() {
   const { classOptions, selectedClass, setSelectedClass, classStudents } = useFilters()
   const [testName, setTestName] = useState('Mathematics - Unit Test 3')
   const [subject, setSubject] = useState('Mathematics')
-  const [recipientStudentId, setRecipientStudentId] = useState('')
-  const [sendMessage, setSendMessage] = useState('')
+  const [recipientStudentId, setRecipientStudentId] = useState('all')
+  const [notification, setNotification] = useState('')
   const [generatedLink, setGeneratedLink] = useState('')
+  const [studentPickerOpen, setStudentPickerOpen] = useState(false)
+  const [isSending, setIsSending] = useState(false)
+  const studentPickerRef = useRef(null)
 
   const recipientStudent = useMemo(
-    () => classStudents.find((student) => student.id === recipientStudentId) || classStudents[0] || null,
+    () =>
+      recipientStudentId === 'all'
+        ? null
+        : classStudents.find((student) => student.id === recipientStudentId) || null,
     [classStudents, recipientStudentId]
   )
 
+  const selectedRecipients = useMemo(() => {
+    if (recipientStudentId === 'all') {
+      return classStudents.slice(0, 3)
+    }
+
+    return recipientStudent ? [recipientStudent] : []
+  }, [classStudents, recipientStudent, recipientStudentId])
+
+  const studentsAttempting = useMemo(
+    () =>
+      classStudents.slice(0, 4).map((student, index) => ({
+        name: student.name,
+        status: studentStatuses[index % studentStatuses.length]
+      })),
+    [classStudents]
+  )
+
+  useEffect(() => {
+    if (!notification) {
+      return undefined
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setNotification('')
+    }, 3000)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [notification])
+
+  useEffect(() => {
+    if (recipientStudentId === 'all') {
+      return
+    }
+
+    if (recipientStudentId && !classStudents.some((student) => student.id === recipientStudentId)) {
+      setRecipientStudentId('all')
+    }
+  }, [classStudents, recipientStudentId])
+
+  useEffect(() => {
+    function handlePointerDown(event) {
+      if (!studentPickerRef.current) {
+        return
+      }
+
+      if (!studentPickerRef.current.contains(event.target)) {
+        setStudentPickerOpen(false)
+      }
+    }
+
+    function handleEscape(event) {
+      if (event.key === 'Escape') {
+        setStudentPickerOpen(false)
+      }
+    }
+
+    window.addEventListener('mousedown', handlePointerDown)
+    window.addEventListener('keydown', handleEscape)
+
+    return () => {
+      window.removeEventListener('mousedown', handlePointerDown)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [])
+
   async function handleSendLink() {
-    const selected = recipientStudent || classStudents[0]
-    if (!selected) {
-      setSendMessage('No student found in this class.')
+    if (isSending) {
+      return
+    }
+
+    const recipients = selectedRecipients
+    if (recipients.length === 0) {
+      setNotification('No student found in this class.')
       return
     }
 
     const sanitizedUserId = TARGET_NUMBER.replace(/[^0-9]/g, '')
+    setIsSending(true)
 
     try {
-      const started = await startStudentTest(sanitizedUserId, selected.name, subject)
-      setGeneratedLink(started.link || '')
-      setSendMessage(`Test link for ${subject} sent to ${TARGET_NUMBER}.`)
+      const results = await Promise.all(
+        recipients.map((student) => startStudentTest(sanitizedUserId, student.name, subject))
+      )
+      setGeneratedLink(results[0]?.link || '')
+      setNotification(
+        recipientStudentId === 'all'
+          ? 'Test link sent to all students.'
+          : `Test link sent to ${recipients[0].name}.`
+      )
     } catch {
       setGeneratedLink('')
-      setSendMessage('Backend unavailable. Could not create test link.')
+      setNotification('Backend unavailable. Could not create test link.')
+    } finally {
+      setIsSending(false)
     }
   }
 
@@ -108,42 +187,56 @@ export default function TestsKioskView() {
                   ))}
                 </select>
               </label>
-              <label>
-                Select Student (Optional)
-                <select value={recipientStudentId} onChange={(event) => setRecipientStudentId(event.target.value)}>
-                  <option value="">Default student in class</option>
-                  {classStudents.map((student) => (
-                    <option key={student.id} value={student.id}>
-                      {student.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button className="generate-btn" type="button" onClick={handleSendLink}>
+              <button className="generate-btn" type="button" onClick={handleSendLink} disabled={isSending}>
                 <Send size={16} />
-                Send Link to {TARGET_NUMBER}
+                {isSending ? 'Sending...' : 'Send Test Link'}
               </button>
-              {sendMessage ? <p className="hint-text compact">{sendMessage}</p> : null}
-            </div>
-
-            <div className="phone-preview">
-              <div className="phone-header">
-                <Smartphone size={15} /> WhatsApp Preview
-              </div>
-              <p>Hello Parent,</p>
-              <p>
-                {subject} test link for {recipientStudent?.name || 'Class 10-A students'} is ready.
-                <br />
-                Click: {generatedLink || `${window.location.origin}/#/test/${testName.toLowerCase().replace(/\s+/g, '-')}`}
+              <p className="hint-text compact">
+                {recipientStudent ? `Selected student: ${recipientStudent.name}` : 'Selected student: all students'}
               </p>
-              <small>Sent via VNR Smart School</small>
             </div>
           </div>
         </article>
 
         <article className="panel live-tracking-card">
-          <div className="panel-header compact">
+          <div className="panel-header compact tracking-header">
             <h3>Students Attempting</h3>
+            <div className="student-picker-wrap student-picker-wrap-right" ref={studentPickerRef}>
+              <button
+                className="generate-btn student-picker-trigger"
+                type="button"
+                onClick={() => setStudentPickerOpen((open) => !open)}
+              >
+                Select Student
+              </button>
+              {studentPickerOpen ? (
+                <div className="student-picker-menu panel">
+                  <button
+                    type="button"
+                    className={`student-picker-option ${recipientStudentId === 'all' ? 'active' : ''}`}
+                    onClick={() => {
+                      setRecipientStudentId('all')
+                      setStudentPickerOpen(false)
+                    }}
+                  >
+                    Select all students
+                  </button>
+                  {classStudents.map((student) => (
+                    <button
+                      key={student.id}
+                      type="button"
+                      className={`student-picker-option ${recipientStudentId === student.id ? 'active' : ''}`}
+                      onClick={() => {
+                        setRecipientStudentId(student.id)
+                        setStudentPickerOpen(false)
+                      }}
+                    >
+                      {student.name}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
           <div className="tracking-list">
             {studentsAttempting.map((student) => (
@@ -174,6 +267,12 @@ export default function TestsKioskView() {
         <Link2 size={16} />
         <span>WhatsApp template approved and delivery status tracking is enabled.</span>
       </section>
+
+      {notification ? (
+        <div className="popup-toast" role="status" aria-live="polite">
+          {notification}
+        </div>
+      ) : null}
     </div>
   )
 }

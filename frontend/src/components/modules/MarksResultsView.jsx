@@ -16,6 +16,27 @@ const distribution = [
 export default function MarksResultsView() {
   const { classOptions, selectedClass, setSelectedClass, classStudents, selectedStudent, setSelectedStudent } = useFilters()
   const [marksData, setMarksData] = useState(null)
+  const [sending, setSending] = useState(false)
+  const [toast, setToast] = useState('')
+
+  async function handleSendResult() {
+    if (!selectedStudent) {
+      setToast('Please select a student first.')
+      setTimeout(() => setToast(''), 3000)
+      return
+    }
+    setSending(true)
+    setToast('')
+    try {
+      await sendStudentReport(selectedStudent.id, 'exam_report')
+      setToast(`Result sent to ${selectedStudent.name}'s parent on WhatsApp.`)
+    } catch {
+      setToast('Failed to send. Check backend logs.')
+    } finally {
+      setSending(false)
+      setTimeout(() => setToast(''), 4000)
+    }
+  }
 
   useEffect(() => {
     let active = true
@@ -74,16 +95,14 @@ export default function MarksResultsView() {
         <button
           className="generate-btn"
           type="button"
-          onClick={() => {
-            if (selectedStudent) {
-              sendStudentReport(selectedStudent.id, 'exam_report')
-            }
-          }}
+          disabled={sending}
+          onClick={handleSendResult}
         >
           <Download size={16} />
-          Send Result PDF
+          {sending ? 'Sending...' : 'Send Result PDF'}
         </button>
       </header>
+      {toast && <div className="toast-notification">{toast}</div>}
 
       <section className="panel generator-bar student-filter-bar">
         <div className="filter-compact">

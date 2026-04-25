@@ -115,11 +115,10 @@ export default function App() {
         <aside className="sidebar">
         <div className="brand-block">
           <div className="logo-placeholder" aria-hidden="true">
-            V
+            KIS
           </div>
           <div className="brand-copy">
-            <h1>VNR Smart School</h1>
-            <p>Excellence in Education</p>
+            <h1>Kasiga International School</h1>
           </div>
           <button
             className="sidebar-toggle"

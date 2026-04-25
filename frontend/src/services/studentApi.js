@@ -19,6 +19,30 @@ async function fetchJson(path, options = {}) {
   return response.json()
 }
 
+async function fetchJsonWithSameOriginFallback(path, options = {}) {
+  try {
+    return await fetchJson(path, options)
+  } catch (error) {
+    if (typeof window === 'undefined' || !window.location.origin) {
+      throw error
+    }
+
+    const fallbackResponse = await fetch(`${window.location.origin}${API_PREFIX}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      },
+      ...options
+    })
+
+    if (!fallbackResponse.ok) {
+      throw error
+    }
+
+    return fallbackResponse.json()
+  }
+}
+
 export function getStudentAttendance(studentId) {
   return fetchJson(`/attendance/${studentId}`)
 }
@@ -105,11 +129,11 @@ export function sendStudentAlert(payload) {
 }
 
 export function getStudentTest(testId) {
-  return fetchJson(`/test-data/${encodeURIComponent(testId)}`)
+  return fetchJsonWithSameOriginFallback(`/test-data/${encodeURIComponent(testId)}`)
 }
 
 export function submitStudentTest(testId, selectedAnswers) {
-  return fetchJson('/submit-test', {
+  return fetchJsonWithSameOriginFallback('/submit-test', {
     method: 'POST',
     body: JSON.stringify({
       test_id: testId,
