@@ -70,12 +70,23 @@ Official webhook endpoint:
   - TWILIO_ACCOUNT_SID
   - TWILIO_AUTH_TOKEN
   - TWILIO_WHATSAPP_NUMBER
+  - PUBLIC_BASE_URL=http://127.0.0.1:8000
+  - FRONTEND_PUBLIC_BASE_URL=http://127.0.0.1:5173
 3. Expose local backend to internet using ngrok:
   ngrok http 8000
 4. In Twilio Sandbox settings, set incoming webhook URL to:
   https://your-ngrok-domain/api/v1/webhook
 5. Join sandbox from your phone using Twilio join code.
 6. Send WhatsApp messages and verify replies from backend.
+
+## Phone-Friendly Test Links
+
+If you want the generated test link to open on a phone, set the public URLs in [.env](.env):
+
+1. Set `PUBLIC_BASE_URL` to the public backend URL used by the webhook and API.
+2. Set `FRONTEND_PUBLIC_BASE_URL` to the public URL that serves the website frontend.
+3. If you serve the built frontend from the backend public URL, both values can be the same ngrok URL.
+4. The WhatsApp test link should open the frontend route, and the page will submit back to the API URL carried in the link.
 
 ## Database Setup
 

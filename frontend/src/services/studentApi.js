@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000'
+import { getRuntimeApiBase } from './runtimeConfig'
+
+const API_BASE = getRuntimeApiBase()
 const API_PREFIX = import.meta.env.VITE_API_PREFIX || '/api/v1'
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY

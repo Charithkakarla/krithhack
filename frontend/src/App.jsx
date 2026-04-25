@@ -12,6 +12,7 @@ import {
   Palette,
   School,
   Settings2,
+  Target,
   UserCog,
   Users
 } from 'lucide-react'
@@ -26,6 +27,7 @@ import TestAttemptView from './components/modules/TestAttemptView'
 import StudentsView from './components/modules/StudentsView'
 import TestsKioskView from './components/modules/TestsKioskView'
 import TimetableView from './components/modules/TimetableView'
+import GoalTrackerView from './components/modules/GoalTrackerView'
 import { FilterProvider } from './context/FilterContext'
 
 const navItems = [
@@ -40,6 +42,7 @@ const navItems = [
   { key: 'holidays', label: 'Holidays', icon: Palette },
   { key: 'fees', label: 'Fees', icon: IndianRupee },
   { key: 'alerts', label: 'Alerts & Notifications', icon: BellRing },
+  { key: 'goals', label: 'Goal Tracker', icon: Target },
   { key: 'settings', label: 'Settings', icon: Settings2 }
 ]
 
@@ -97,6 +100,8 @@ export default function App() {
         return <FeesView />
       case 'alerts':
         return <AlertsView />
+      case 'goals':
+        return <GoalTrackerView />
       case 'settings':
         return <PlaceholderView title="Settings" />
       default:
