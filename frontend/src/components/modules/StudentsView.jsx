@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useFilters } from '../../context/FilterContext'
-import { attendanceFallbackByStudent, marksFallbackByStudent } from '../../data/students'
+import { attendanceFallbackByStudent, marksFallbackByStudent, parentsByStudent } from '../../data/students'
 
 const stats = [
   { title: 'Total Students', value: '512' },
@@ -15,9 +15,23 @@ const teachers = [
   { name: 'Mrs. Priya', className: 'English', phone: '+91 99888 11003', attendance: '96.1%', marks: '-', status: 'On Leave' }
 ]
 
-export default function StudentsView({ onNavigate }) {
+function parentFor(student) {
+  return parentsByStudent[student.id] || {
+    name: `Parent of ${student.name}`,
+    relation: 'Guardian',
+    phone: student.phone || '-',
+    email: `${String(student.name || 'parent').toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '')}.parent@example.com`
+  }
+}
+
+export default function StudentsView({ onNavigate, initialMode = 'students' }) {
   const { classStudents, selectedClassLabel, setSelectedStudent } = useFilters()
-  const [mode, setMode] = useState('students')
+  const [mode, setMode] = useState(initialMode)
+
+  useEffect(() => {
+    setMode(initialMode)
+  }, [initialMode])
+
   const students = classStudents.map((student) => {
     const attendance = attendanceFallbackByStudent[student.id]
     const marks = marksFallbackByStudent[student.id]
@@ -28,8 +42,21 @@ export default function StudentsView({ onNavigate }) {
       status: (attendance?.attendancePercentage || 0) < 75 ? 'Watchlist' : 'Active'
     }
   })
+  const parents = classStudents.map((student) => {
+    const parent = parentFor(student)
+    return {
+      id: `parent-${student.id}`,
+      name: parent.name,
+      className: `${parent.relation} of ${student.name}`,
+      phone: parent.phone,
+      attendance: student.className || selectedClassLabel,
+      marks: parent.email,
+      status: 'Linked',
+      student
+    }
+  })
 
-  const rows = mode === 'students' ? students : teachers
+  const rows = mode === 'students' ? students : mode === 'parents' ? parents : teachers
 
   function handleViewProfile(row, targetModule = 'attendance') {
     if (mode !== 'students') {
@@ -46,7 +73,7 @@ export default function StudentsView({ onNavigate }) {
       <header className="module-header panel">
         <div>
           <h2>Student & Teacher Management</h2>
-          <p>Directory and operational actions for classroom administration.</p>
+          <p>Directory and operational actions for students, parents, and teachers.</p>
         </div>
       </header>
 
@@ -66,6 +93,9 @@ export default function StudentsView({ onNavigate }) {
             <button type="button" className={mode === 'students' ? 'active' : ''} onClick={() => setMode('students')}>
               Students
             </button>
+            <button type="button" className={mode === 'parents' ? 'active' : ''} onClick={() => setMode('parents')}>
+              Parents
+            </button>
             <button type="button" className={mode === 'teachers' ? 'active' : ''} onClick={() => setMode('teachers')}>
               Teachers
             </button>
@@ -75,11 +105,11 @@ export default function StudentsView({ onNavigate }) {
         <table>
           <thead>
             <tr>
-              <th>{mode === 'students' ? 'Student Name' : 'Teacher Name'}</th>
-              <th>{mode === 'students' ? 'Class' : 'Subject'}</th>
+              <th>{mode === 'students' ? 'Student Name' : mode === 'parents' ? 'Parent Name' : 'Teacher Name'}</th>
+              <th>{mode === 'students' ? 'Class' : mode === 'parents' ? 'Student' : 'Subject'}</th>
               <th>Phone</th>
-              <th>Attendance %</th>
-              <th>Avg Marks</th>
+              <th>{mode === 'parents' ? 'Class' : 'Attendance %'}</th>
+              <th>{mode === 'parents' ? 'Email' : 'Avg Marks'}</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -103,6 +133,10 @@ export default function StudentsView({ onNavigate }) {
                     {mode === 'students' ? (
                       <button type="button" onClick={() => handleViewProfile(row, 'marks')}>
                         View Marks
+                      </button>
+                    ) : mode === 'parents' ? (
+                      <button type="button" onClick={() => setSelectedStudent(row.student)}>
+                        Select Student
                       </button>
                     ) : (
                       <button type="button">Edit</button>

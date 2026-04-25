@@ -1,11 +1,12 @@
-﻿import { useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import {
   BellRing,
   BookOpenCheck,
   CalendarDays,
+  ChevronsLeft,
+  ChevronsRight,
   FileSpreadsheet,
   FileText,
-  Headphones,
   IndianRupee,
   LayoutGrid,
   Palette,
@@ -21,6 +22,7 @@ import FeesView from './components/modules/FeesView'
 import HolidaysView from './components/modules/HolidaysView'
 import MarksResultsView from './components/modules/MarksResultsView'
 import ReportsView from './components/modules/ReportsView'
+import TestAttemptView from './components/modules/TestAttemptView'
 import StudentsView from './components/modules/StudentsView'
 import TestsKioskView from './components/modules/TestsKioskView'
 import TimetableView from './components/modules/TimetableView'
@@ -60,6 +62,18 @@ function PlaceholderView({ title }) {
 
 export default function App() {
   const [activeModule, setActiveModule] = useState('dashboard')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [locationHash, setLocationHash] = useState(window.location.hash)
+
+  useEffect(() => {
+    const handleHashChange = () => setLocationHash(window.location.hash)
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
+
+  if (locationHash.startsWith('#/test/')) {
+    return <TestAttemptView />
+  }
 
   const activeView = useMemo(() => {
     switch (activeModule) {
@@ -71,9 +85,10 @@ export default function App() {
         return <ReportsView />
       case 'tests':
         return <TestsKioskView />
-      case 'students':
       case 'parents':
-        return <StudentsView onNavigate={setActiveModule} />
+        return <StudentsView onNavigate={setActiveModule} initialMode="parents" />
+      case 'students':
+        return <StudentsView onNavigate={setActiveModule} initialMode="students" />
       case 'timetable':
         return <TimetableView />
       case 'holidays':
@@ -91,16 +106,24 @@ export default function App() {
 
   return (
     <FilterProvider>
-      <div className="dashboard-layout">
+      <div className={`dashboard-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <aside className="sidebar">
         <div className="brand-block">
           <div className="logo-placeholder" aria-hidden="true">
             V
           </div>
-          <div>
+          <div className="brand-copy">
             <h1>VNR Smart School</h1>
             <p>Excellence in Education</p>
           </div>
+          <button
+            className="sidebar-toggle"
+            type="button"
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={() => setSidebarCollapsed((value) => !value)}
+          >
+            {sidebarCollapsed ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}
+          </button>
         </div>
 
         <nav className="nav-list" aria-label="Main Navigation">
@@ -112,15 +135,10 @@ export default function App() {
               onClick={() => setActiveModule(key)}
             >
               <Icon size={18} />
-              <span>{label}</span>
+              <span className="nav-label">{label}</span>
             </button>
           ))}
         </nav>
-
-        <div className="support-card">
-          <Headphones size={20} />
-          <span>Need Help? Contact Support</span>
-        </div>
         </aside>
 
         <main className="main-content">{activeView}</main>

@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import {
   Bell,
   BookOpenCheck,
@@ -21,6 +22,10 @@ import {
   XAxis,
   YAxis
 } from 'recharts'
+import { getDashboardSummary, runQuickAction } from '../../services/dashboardApi'
+import { useFilters } from '../../context/FilterContext'
+import { sendStudentReport } from '../../services/studentApi'
+import { attendanceFallbackByStudent, marksFallbackByStudent } from '../../data/students'
 
 const kpis = [
   { title: 'Total Students', value: '512', subtext: '+12 this month', className: 'kpi-blue' },
@@ -50,19 +55,6 @@ const marksData = [
   { day: '24 Apr', marks: 82 }
 ]
 
-const topStudents = [
-  { rank: 1, name: 'Ananya Rao', className: '10-A', marks: 93, initial: 'AR' },
-  { rank: 2, name: 'Rahul Mehta', className: '9-B', marks: 89, initial: 'RM' },
-  { rank: 3, name: 'Sneha Kapoor', className: '10-A', marks: 88, initial: 'SK' },
-  { rank: 4, name: 'Nikhil Sharma', className: '9-A', marks: 86, initial: 'NS' }
-]
-
-const attentionStudents = [
-  { name: 'Ritik Kumar', className: '9-A', reason: 'Low Attendance', level: 52, tone: 'danger' },
-  { name: 'Ayaan Verma', className: '8-B', reason: 'Low Marks', level: 59, tone: 'warning' },
-  { name: 'Priya Das', className: '10-B', reason: 'Frequent Late Entry', level: 61, tone: 'warning' }
-]
-
 const classwiseAttendance = [
   { className: '6-A', value: 88, color: '#3b82f6' },
   { className: '7-A', value: 78, color: '#22c55e' },
@@ -73,10 +65,10 @@ const classwiseAttendance = [
 ]
 
 const quickActions = [
-  { label: 'Send Daily Attendance', icon: Calendar, className: 'qa-blue' },
-  { label: 'Send Instant Result', icon: FileText, className: 'qa-green' },
-  { label: 'Generate Weekly Report', icon: FileSpreadsheet, className: 'qa-purple' },
-  { label: 'Generate Monthly Report', icon: FileSpreadsheet, className: 'qa-orange' }
+  { id: 'send_daily_attendance', label: 'Send Daily Attendance', icon: Calendar, className: 'qa-blue' },
+  { id: 'send_instant_result', label: 'Send Instant Result', icon: FileText, className: 'qa-green' },
+  { id: 'generate_weekly_report', label: 'Generate Weekly Report', icon: FileSpreadsheet, className: 'qa-purple' },
+  { id: 'generate_monthly_report', label: 'Generate Monthly Report', icon: FileSpreadsheet, className: 'qa-orange' }
 ]
 
 const activities = [
@@ -107,6 +99,142 @@ function PanelHeader({ title, rightText }) {
 }
 
 export default function DashboardView() {
+  const { classStudents } = useFilters()
+  const [summary, setSummary] = useState(null)
+  const [actionMessage, setActionMessage] = useState('')
+  const [runningActionId, setRunningActionId] = useState('')
+
+  useEffect(() => {
+    let active = true
+    async function loadSummary() {
+      try {
+        const response = await getDashboardSummary()
+        if (!active) {
+          return
+        }
+        setSummary(response)
+      } catch {
+        if (!active) {
+          return
+        }
+        setSummary(null)
+      }
+    }
+    loadSummary()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const liveKpis = useMemo(() => {
+    if (!summary?.kpis) {
+      return kpis
+    }
+    return [
+      {
+        title: 'Total Students',
+        value: String(summary.kpis.totalStudents ?? 0),
+        subtext: 'Live from database',
+        className: 'kpi-blue'
+      },
+      {
+        title: 'Average Attendance',
+        value: `${summary.kpis.averageAttendance ?? 0}%`,
+        subtext: 'Live trend',
+        className: 'kpi-green'
+      },
+      {
+        title: 'Average Marks',
+        value: `${summary.kpis.averageMarks ?? 0}%`,
+        subtext: 'Live trend',
+        className: 'kpi-purple'
+      },
+      {
+        title: 'Active Alerts',
+        value: String(summary.kpis.activeAlerts ?? 0),
+        subtext: 'Students need attention',
+        className: 'kpi-orange'
+      },
+      {
+        title: 'Fees Collection',
+        value: `${summary.kpis.feesCollection ?? 0}%`,
+        subtext: 'This month',
+        className: 'kpi-rupee'
+      }
+    ]
+  }, [summary])
+
+  const liveAttendanceData = summary?.attendanceTrend || attendanceData
+  const liveMarksData = summary?.marksTrend || marksData
+  const topStudents = useMemo(() => {
+    return classStudents
+      .map((student) => {
+        const fallbackMarks = marksFallbackByStudent[student.id]
+        const marks = fallbackMarks?.overallPercentage ?? Math.round(((Number(student.mathGrade) || 0) + (Number(student.scienceGrade) || 0)) / 2)
+        return {
+          name: student.name,
+          className: student.className || '10-A',
+          marks: Number.isFinite(marks) ? marks : 0,
+          initial: String(student.name || 'ST').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+        }
+      })
+      .sort((a, b) => b.marks - a.marks)
+      .slice(0, 4)
+      .map((student, index) => ({ ...student, rank: index + 1 }))
+  }, [classStudents])
+
+  const attentionStudents = useMemo(() => {
+    return classStudents
+      .map((student) => {
+        const attendance = attendanceFallbackByStudent[student.id]?.attendancePercentage ?? Number(student.attendancePercentage) ?? 0
+        const fallbackMarks = marksFallbackByStudent[student.id]?.overallPercentage
+        const marks = fallbackMarks ?? Math.round(((Number(student.mathGrade) || 0) + (Number(student.scienceGrade) || 0)) / 2)
+        if (attendance < 75) {
+          return { name: student.name, className: student.className || '10-A', reason: 'Low Attendance', level: Math.round(attendance), tone: 'danger' }
+        }
+        if (marks < 75) {
+          return { name: student.name, className: student.className || '10-A', reason: 'Low Marks', level: Math.round(marks), tone: 'warning' }
+        }
+        return null
+      })
+      .filter(Boolean)
+      .slice(0, 3)
+  }, [classStudents])
+
+  async function handleQuickAction(actionId, label) {
+    setRunningActionId(actionId)
+    setActionMessage('')
+    try {
+      if (actionId === 'generate_weekly_report' || actionId === 'generate_monthly_report' || actionId === 'send_instant_result') {
+        const reportStudent = classStudents.find((student) => String(student.name || '').toLowerCase() === 'kakarla charith')
+        if (!reportStudent) {
+          setActionMessage(`${label}: Kakarla Charith was not found in the loaded student list.`)
+          return
+        }
+
+        const reportType = actionId === 'generate_weekly_report'
+          ? 'weekly_report'
+          : actionId === 'generate_monthly_report'
+            ? 'overall_report_card'
+            : 'exam_report'
+
+        const result = await sendStudentReport(reportStudent.id, reportType)
+
+        const sentCount = (result.results || []).filter((item) => item.sent).length
+        setActionMessage(`${label}: report sent successfully.`)
+        return
+      }
+
+      const result = await runQuickAction(actionId)
+      const sentCount = (result.results || []).filter((item) => item.sent).length
+      setActionMessage(`${label}: notification sent successfully.`)
+    } catch {
+      setActionMessage(`${label}: failed. Please check backend logs and Evolution API.`)
+    } finally {
+      setRunningActionId('')
+    }
+  }
+
   return (
     <>
       <header className="top-header panel">
@@ -141,7 +269,7 @@ export default function DashboardView() {
       </div>
 
       <section className="kpi-grid">
-        {kpis.map((kpi) => (
+        {liveKpis.map((kpi) => (
           <article key={kpi.title} className={`kpi-card ${kpi.className}`}>
             <h4>{kpi.title}</h4>
             <p className="kpi-value">{kpi.value}</p>
@@ -156,7 +284,7 @@ export default function DashboardView() {
             <PanelHeader title="Attendance Overview (Last 7 Days)" rightText="Last 7 Days" />
             <div className="chart-wrap">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={attendanceData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
+                <LineChart data={liveAttendanceData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
                   <defs>
                     <linearGradient id="attendanceFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.35} />
@@ -213,7 +341,7 @@ export default function DashboardView() {
           <article className="panel table-card">
             <PanelHeader title="Students Needing Attention" />
             <div className="attention-list">
-              {attentionStudents.map((student) => (
+              {attentionStudents.length ? attentionStudents.map((student) => (
                 <div key={student.name} className="attention-item">
                   <div className="attention-meta">
                     <strong>
@@ -228,7 +356,7 @@ export default function DashboardView() {
                     <span>{student.level}%</span>
                   </div>
                 </div>
-              ))}
+              )) : <div className="attention-item">No students need attention right now.</div>}
             </div>
           </article>
         </div>
@@ -238,7 +366,7 @@ export default function DashboardView() {
             <PanelHeader title="Marks Overview (Last 7 Days)" />
             <div className="chart-wrap">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={marksData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
+                <LineChart data={liveMarksData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
                   <CartesianGrid stroke="#edf3e7" strokeDasharray="3 3" />
                   <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
                   <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} domain={[65, 90]} />
@@ -296,10 +424,16 @@ export default function DashboardView() {
           <article className="panel quick-actions-card">
             <PanelHeader title="Quick Actions" />
             <div className="quick-grid">
-              {quickActions.map(({ label, icon: Icon, className }) => (
-                <button key={label} className={`quick-btn ${className}`} type="button">
+              {quickActions.map(({ id, label, icon: Icon, className }) => (
+                <button
+                  key={label}
+                  className={`quick-btn ${className}`}
+                  type="button"
+                  onClick={() => handleQuickAction(id, label)}
+                  disabled={runningActionId === id}
+                >
                   <Icon size={18} />
-                  <span>{label}</span>
+                  <span>{runningActionId === id ? 'Processing...' : label}</span>
                 </button>
               ))}
             </div>
@@ -321,6 +455,7 @@ export default function DashboardView() {
           </article>
         </aside>
       </section>
+      {actionMessage ? <div className="toast-notification">{actionMessage}</div> : null}
     </>
   )
 }

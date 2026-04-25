@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Download } from 'lucide-react'
 import { CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useFilters } from '../../context/FilterContext'
 import { classAverageTrend, examLabels, marksFallbackByStudent } from '../../data/students'
-import { getStudentMarks } from '../../services/studentApi'
+import { getStudentMarks, sendStudentReport } from '../../services/studentApi'
 
 const distribution = [
   { range: '90% and above', students: 2, color: '#22c55e' },
@@ -70,6 +71,18 @@ export default function MarksResultsView() {
           <h2>Marks & Results</h2>
           <p>Student performance analytics and class benchmarking.</p>
         </div>
+        <button
+          className="generate-btn"
+          type="button"
+          onClick={() => {
+            if (selectedStudent) {
+              sendStudentReport(selectedStudent.id, 'exam_report')
+            }
+          }}
+        >
+          <Download size={16} />
+          Send Result PDF
+        </button>
       </header>
 
       <section className="panel generator-bar student-filter-bar">

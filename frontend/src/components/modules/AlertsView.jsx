@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import {
   AlertCircle,
   Bell,
@@ -11,9 +12,12 @@ import {
   Search,
   Send,
   Smartphone,
-  TriangleAlert
+  TriangleAlert,
+  X
 } from 'lucide-react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
+import { useFilters } from '../../context/FilterContext'
+import { sendStudentAlert } from '../../services/studentApi'
 
 const metrics = [
   {
@@ -48,69 +52,6 @@ const metrics = [
 
 const tabs = ['Active Alerts', 'All Notifications', 'Sent History', 'Alert Rules']
 
-const alertRows = [
-  {
-    alert: 'Low Attendance Alert',
-    description: 'Attendance is below 75%',
-    person: 'Aarav Sharma',
-    contact: '+91 98765 43210',
-    className: '10-A',
-    type: 'Attendance',
-    priority: 'High',
-    datetime: '24 Apr 2026\n10:30 AM',
-    status: 'Active',
-    color: 'row-red'
-  },
-  {
-    alert: 'Performance Drop Alert',
-    description: 'Marks dropped by 15%',
-    person: 'Ananya Sharma',
-    contact: '+91 98765 43211',
-    className: '10-A',
-    type: 'Performance',
-    priority: 'Medium',
-    datetime: '24 Apr 2026\n09:15 AM',
-    status: 'Active',
-    color: 'row-orange'
-  },
-  {
-    alert: 'Low Marks Alert',
-    description: 'Scored below 40% in Science',
-    person: 'Kabir Singh',
-    contact: '+91 98765 43212',
-    className: '9-B',
-    type: 'Marks',
-    priority: 'High',
-    datetime: '23 Apr 2026\n04:45 PM',
-    status: 'Active',
-    color: 'row-pink'
-  },
-  {
-    alert: 'Fee Due Reminder',
-    description: 'Fee due for April 2026',
-    person: 'Parent of Meera Joshi',
-    contact: '+91 98765 43213',
-    className: '8-A',
-    type: 'Fee',
-    priority: 'Medium',
-    datetime: '23 Apr 2026\n11:00 AM',
-    status: 'Active',
-    color: 'row-yellow'
-  },
-  {
-    alert: 'Test Reminder',
-    description: 'Unit Test on 26 April 2026',
-    person: 'Arjun Patel',
-    contact: '+91 98765 43214',
-    className: '10-B',
-    type: 'Reminder',
-    priority: 'Low',
-    datetime: '22 Apr 2026\n06:30 PM',
-    status: 'Scheduled',
-    color: 'row-blue'
-  }
-]
-
 const donutData = [
   { name: 'High', value: 12, color: '#ef4444' },
   { name: 'Medium', value: 18, color: '#f59e0b' },
@@ -124,6 +65,10 @@ const channels = [
   { name: 'Email', count: 12, share: '9%', icon: Mail, tone: 'ch-purple' }
 ]
 
+const ALERT_PHONE = '7799663979'
+const ATTENDANCE_THRESHOLD = 80
+const MARKS_THRESHOLD = 75
+
 function Badge({ value, tone }) {
   return <span className={`alert-badge ${tone}`}>{value}</span>
 }
@@ -133,7 +78,195 @@ function splitDateTime(text) {
   return { date, time }
 }
 
+function toNumeric(value) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function getMarksPercentage(student) {
+  if (Number.isFinite(toNumeric(student.overallPercentage))) {
+    return toNumeric(student.overallPercentage)
+  }
+
+  if (Array.isArray(student.subjects) && student.subjects.length > 0) {
+    const percentages = student.subjects
+      .map((row) => {
+        const max = toNumeric(row.max) || 100
+        const obtained = toNumeric(row.obtained)
+        if (obtained === null || max <= 0) {
+          return null
+        }
+        return (obtained / max) * 100
+      })
+      .filter((value) => value !== null)
+
+    if (percentages.length > 0) {
+      return percentages.reduce((sum, value) => sum + value, 0) / percentages.length
+    }
+  }
+
+  const directMarks = [student.mathGrade, student.scienceGrade]
+    .map((value) => {
+      const parsed = toNumeric(value)
+      if (parsed !== null) {
+        return parsed
+      }
+
+      const normalized = String(value || '').trim().toUpperCase()
+      const gradeMap = {
+        'A+': 96,
+        A: 90,
+        'B+': 82,
+        B: 75,
+        'C+': 68,
+        C: 60,
+        D: 50,
+        F: 35
+      }
+
+      return gradeMap[normalized] ?? null
+    })
+    .filter((value) => value !== null)
+
+  if (directMarks.length > 0) {
+    return directMarks.reduce((sum, value) => sum + value, 0) / directMarks.length
+  }
+
+  return null
+}
+
+function getAlertRows(students) {
+  const rows = []
+
+  students.forEach((student, index) => {
+    const attendance = toNumeric(student.attendancePercentage ?? student.attendance_percentage)
+    const marks = getMarksPercentage(student)
+    const className = student.className || '10-A'
+    const phone = student.phone || student.parent_phone || '-'
+
+    if (attendance !== null && attendance < ATTENDANCE_THRESHOLD) {
+      rows.push({
+        id: `attendance-${student.id}`,
+        alert: 'Low Attendance Alert',
+        description: `Attendance is below ${ATTENDANCE_THRESHOLD}%`,
+        type: 'Attendance',
+        priority: 'High',
+        color: 'row-red',
+        person: student.name,
+        contact: phone,
+        className,
+        datetime: `${24 - Math.min(index, 2)} Apr 2026\n${String(10 + index).padStart(2, '0')}:30 AM`,
+        status: 'Active',
+        attendance,
+        marks,
+        student,
+        note: 'Please review attendance and inform the parent immediately.'
+      })
+    }
+
+    if (marks !== null && marks < MARKS_THRESHOLD) {
+      rows.push({
+        id: `marks-${student.id}`,
+        alert: 'Low Marks Alert',
+        description: `Marks are below ${MARKS_THRESHOLD}%`,
+        type: 'Marks',
+        priority: 'High',
+        color: 'row-pink',
+        person: student.name,
+        contact: phone,
+        className,
+        datetime: `${24 - Math.min(index, 2)} Apr 2026\n${String(11 + index).padStart(2, '0')}:00 AM`,
+        status: 'Active',
+        attendance,
+        marks,
+        student,
+        note: 'Please share subject-wise improvement guidance with the parent.'
+      })
+    }
+  })
+
+  if (!rows.length) {
+    return [
+      {
+        id: 'no-alerts',
+        alert: 'No Active Alerts',
+        description: 'All tracked students are above alert thresholds.',
+        type: 'Info',
+        priority: 'Low',
+        color: 'row-blue',
+        person: 'All Students',
+        contact: '-',
+        className: '10-A',
+        datetime: '24 Apr 2026\n10:30 AM',
+        status: 'Resolved',
+        attendance: null,
+        marks: null,
+        student: null,
+        note: 'No delivery needed.'
+      }
+    ]
+  }
+
+  return rows.slice(0, 8)
+}
+
 export default function AlertsView() {
+  const { classStudents } = useFilters()
+  const [notificationOpen, setNotificationOpen] = useState(false)
+  const [sendingId, setSendingId] = useState('')
+  const [statusMessage, setStatusMessage] = useState('')
+
+  const alertRows = useMemo(() => {
+    const templates = [
+      { alert: 'Low Attendance Alert', description: 'Attendance is below 75%', type: 'Attendance', priority: 'High', color: 'row-red' },
+      { alert: 'Performance Drop Alert', description: 'Marks dropped below class target', type: 'Performance', priority: 'Medium', color: 'row-orange' },
+      { alert: 'Low Marks Alert', description: 'Scored below 75% in core subjects', type: 'Marks', priority: 'High', color: 'row-pink' },
+      { alert: 'Fee Due Reminder', description: 'Term fee payment is pending', type: 'Fee', priority: 'Medium', color: 'row-yellow' },
+      { alert: 'Test Reminder', description: 'Upcoming unit test reminder', type: 'Reminder', priority: 'Low', color: 'row-blue' }
+    ]
+
+    return classStudents.slice(0, 5).map((student, index) => {
+      const template = templates[index % templates.length]
+      return {
+        ...template,
+        person: template.type === 'Fee' ? `Parent of ${student.name}` : student.name,
+        contact: student.phone || '-',
+        className: student.className || '10-A',
+        datetime: `${24 - Math.min(index, 2)} Apr 2026\n${String(10 + index).padStart(2, '0')}:30 AM`,
+        status: template.type === 'Reminder' ? 'Scheduled' : 'Active'
+      }
+    })
+  }, [classStudents])
+
+  const notificationRows = useMemo(() => getAlertRows(classStudents), [classStudents])
+
+  async function handleSendAlert(row) {
+    if (!row.student) {
+      setStatusMessage('No student selected for this notification.')
+      return
+    }
+
+    setSendingId(row.id)
+    setStatusMessage('Sending alert to 7799663979...')
+
+    try {
+      const result = await sendStudentAlert({
+        student_id: row.student.id,
+        student_name: row.student.name,
+        alert_type: row.alert,
+        attendance_percentage: row.attendance,
+        marks_percentage: row.marks,
+        note: row.note
+      })
+
+      setStatusMessage(`${row.student.name}: alert sent to ${result.target_number}.`)
+    } catch {
+      setStatusMessage(`Failed to send alert for ${row.student.name}.`)
+    } finally {
+      setSendingId('')
+    }
+  }
+
   return (
     <div className="module-page alerts-page">
       <section className="alerts-topbar panel">
@@ -151,7 +284,12 @@ export default function AlertsView() {
             <CalendarDays size={16} />
             24 April 2026, Thursday
           </span>
-          <button className="icon-button" type="button" aria-label="Notifications">
+          <button
+            className="icon-button notification-toggle"
+            type="button"
+            aria-label="Notifications"
+            onClick={() => setNotificationOpen((value) => !value)}
+          >
             <Bell size={17} />
             <span className="dot-badge" />
           </button>
@@ -162,6 +300,43 @@ export default function AlertsView() {
               <small>Super Admin</small>
             </div>
           </div>
+
+          {notificationOpen ? (
+            <div className="notifications-popover panel">
+              <div className="notifications-header">
+                <div>
+                  <strong>Notifications</strong>
+                  <p>Low attendance and low marks</p>
+                </div>
+                <button type="button" className="icon-outline compact" aria-label="Close notifications" onClick={() => setNotificationOpen(false)}>
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div className="notifications-list">
+                {notificationRows.map((row) => (
+                  <article key={row.id} className="notification-item">
+                    <div className="notification-copy">
+                      <span className={`alert-dot ${row.color}`}>
+                        <TriangleAlert size={12} />
+                      </span>
+                      <div>
+                        <strong>{row.alert}</strong>
+                        <p>
+                          {row.person} {row.attendance !== null ? `- Attendance ${row.attendance.toFixed(1)}%` : ''}
+                          {row.marks !== null ? `- Marks ${row.marks.toFixed(1)}%` : ''}
+                        </p>
+                        <small>{row.note}</small>
+                      </div>
+                    </div>
+                    <button type="button" className="send-alert-btn" onClick={() => handleSendAlert(row)} disabled={sendingId === row.id}>
+                      {sendingId === row.id ? 'Sending...' : `Send to ${ALERT_PHONE}`}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -400,6 +575,8 @@ export default function AlertsView() {
           </article>
         </aside>
       </section>
+
+      {statusMessage ? <div className="toast-notification">{statusMessage}</div> : null}
     </div>
   )
 }

@@ -2,9 +2,14 @@ import { useMemo, useState } from 'react'
 import { Download, Eye, Send } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useFilters } from '../../context/FilterContext'
-import { getStudentReport } from '../../services/studentApi'
+import { marksFallbackByStudent } from '../../data/students'
+import { sendStudentReport } from '../../services/studentApi'
 
-const actionCards = ['Weekly Report', 'Monthly Report', 'Term Report', 'Custom Report']
+const actionCards = [
+  { label: 'Weekly Report', type: 'weekly_report' },
+  { label: 'Exam Report', type: 'exam_report' },
+  { label: 'Overall Report Card', type: 'overall_report_card' }
+]
 
 const recentReports = [
   { name: 'Weekly Performance - Class 10-A', date: '24 Apr 2026' },
@@ -20,39 +25,65 @@ const performance = [
   { subject: 'Computer', value: 85 }
 ]
 
-const topPerformers = ['Ananya Rao - 93%', 'Rahul Mehta - 89%', 'Sneha Kapoor - 88%', 'Nikhil Sharma - 86%']
+const reportLabels = {
+  weekly_report: 'Weekly Academic Report',
+  exam_report: 'Exam Report',
+  overall_report_card: 'Overall Report Card'
+}
 
 export default function ReportsView() {
-  const { classOptions, selectedClass, setSelectedClass, classStudents, selectedStudent, setSelectedStudent, selectedClassLabel } = useFilters()
+  const { classOptions, selectedClass, setSelectedClass, classStudents, selectedStudent, setSelectedStudent, selectedClassLabel, dataSource } = useFilters()
   const [studentOverride, setStudentOverride] = useState('')
-  const [reportType, setReportType] = useState('Performance Summary')
+  const [reportType, setReportType] = useState('weekly_report')
   const [reportStatus, setReportStatus] = useState('')
+  const [recentGenerated, setRecentGenerated] = useState([])
+  const [isGenerating, setIsGenerating] = useState(false)
+  const topPerformers = useMemo(() => {
+    return classStudents
+      .map((student) => {
+        const fallbackMarks = marksFallbackByStudent[student.id]
+        const marks = fallbackMarks?.overallPercentage ?? Math.round(((Number(student.mathGrade) || 0) + (Number(student.scienceGrade) || 0)) / 2)
+        return `${student.name} - ${Number.isFinite(marks) ? marks : 0}%`
+      })
+      .slice(0, 4)
+  }, [classStudents])
 
   const reportStudent = useMemo(() => {
-    if (!studentOverride) {
-      return null
+    if (studentOverride) {
+      return classStudents.find((item) => item.id === studentOverride) || null
     }
-    return classStudents.find((item) => item.id === studentOverride) || null
-  }, [classStudents, studentOverride])
+    return selectedStudent || classStudents[0] || null
+  }, [classStudents, selectedStudent, studentOverride])
 
   async function handleGenerateReport() {
-    const payload = {
-      class_id: selectedClassLabel,
-      report_type: reportType,
-      ...(reportStudent ? { student_id: reportStudent.id } : {})
-    }
-
-    if (reportStudent) {
-      try {
-        await getStudentReport(reportStudent.id)
-        setReportStatus(`Individual report generated for ${reportStudent.name} (${JSON.stringify(payload)})`)
-      } catch {
-        setReportStatus(`Report request prepared but backend is unavailable (${JSON.stringify(payload)})`)
-      }
+    if (!reportStudent) {
+      setReportStatus('Select a student before generating a PDF.')
       return
     }
 
-    setReportStatus(`Class report generated for ${selectedClassLabel} (${JSON.stringify(payload)})`)
+    const payload = {
+      class_id: selectedClassLabel,
+      report_type: reportType,
+      student_id: reportStudent.id
+    }
+
+    try {
+      setIsGenerating(true)
+      const result = await sendStudentReport(reportStudent.id, reportType)
+      const sentCount = (result.results || []).filter((item) => item.sent).length
+      const generated = {
+        name: `${reportLabels[reportType] || 'Report'} - ${reportStudent.name}`,
+        date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+        studentId: reportStudent.id,
+        reportType
+      }
+      setRecentGenerated((items) => [generated, ...items].slice(0, 5))
+      setReportStatus(`PDF generated and sent on WhatsApp for ${reportStudent.name}. Sent to ${sentCount}/${(result.results || []).length} recipient. ${JSON.stringify(payload)}`)
+    } catch {
+      setReportStatus(`Could not send the PDF on WhatsApp. Check backend and Evolution API. ${JSON.stringify(payload)}`)
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   return (
@@ -65,10 +96,10 @@ export default function ReportsView() {
       </header>
 
       <section className="module-card-grid four">
-        {actionCards.map((label) => (
-          <button key={label} className="panel action-card" type="button">
-            <strong>{label}</strong>
-            <span>Generate now</span>
+        {actionCards.map((item) => (
+          <button key={item.type} className="panel action-card" type="button" onClick={() => setReportType(item.type)}>
+            <strong>{item.label}</strong>
+            <span>{item.type === 'exam_report' ? 'PDF without graph' : 'PDF with graphs and academic recommendations'}</span>
           </button>
         ))}
       </section>
@@ -77,9 +108,9 @@ export default function ReportsView() {
         <div className="filter-compact">
           <label>Report Type</label>
           <select value={reportType} onChange={(event) => setReportType(event.target.value)}>
-            <option>Performance Summary</option>
-            <option>Attendance Summary</option>
-            <option>Fee Collection</option>
+            <option value="weekly_report">Weekly Report PDF</option>
+            <option value="exam_report">Exam Report PDF</option>
+            <option value="overall_report_card">Overall Report Card PDF</option>
           </select>
         </div>
         <div className="filter-compact">
@@ -110,7 +141,7 @@ export default function ReportsView() {
               }
             }}
           >
-            <option value="">All Students (Class Report)</option>
+            <option value="">Current Student</option>
             {classStudents.map((student) => (
               <option key={student.id} value={student.id}>
                 {student.name}
@@ -126,11 +157,12 @@ export default function ReportsView() {
           </select>
         </div>
         <button className="generate-btn" type="button" onClick={handleGenerateReport}>
-          Generate Report
+          {isGenerating ? 'Sending...' : 'Send PDF on WhatsApp'}
         </button>
       </section>
 
       {reportStatus ? <section className="panel status-message">{reportStatus}</section> : null}
+      <section className="panel status-message">Student data source: {dataSource === 'supabase' ? 'Supabase live database' : 'local fallback data'}</section>
 
       <section className="panel">
         <div className="panel-header compact">
@@ -145,7 +177,7 @@ export default function ReportsView() {
             </tr>
           </thead>
           <tbody>
-            {recentReports.map((item) => (
+            {[...recentGenerated, ...recentReports].map((item) => (
               <tr key={item.name}>
                 <td>{item.name}</td>
                 <td>{item.date}</td>
@@ -154,7 +186,15 @@ export default function ReportsView() {
                     <button type="button" aria-label="View">
                       <Eye size={16} />
                     </button>
-                    <button type="button" aria-label="Download">
+                    <button
+                      type="button"
+                      aria-label="Send on WhatsApp"
+                      onClick={() => {
+                        if (item.studentId) {
+                          sendStudentReport(item.studentId, item.reportType)
+                        }
+                      }}
+                    >
                       <Download size={16} />
                     </button>
                     <button type="button" aria-label="Send">

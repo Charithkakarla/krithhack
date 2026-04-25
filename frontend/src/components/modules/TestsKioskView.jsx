@@ -1,8 +1,18 @@
 import { useMemo, useState } from 'react'
 import { CheckCircle2, Link2, Send, Smartphone } from 'lucide-react'
 import { useFilters } from '../../context/FilterContext'
+import { startStudentTest } from '../../services/studentApi'
 
 const steps = ['Create', 'Send Link', 'Take Test', 'Analysis']
+const TARGET_NUMBER = '7799663979'
+
+const subjects = [
+  'Mathematics',
+  'Science',
+  'English',
+  'Social Studies',
+  'Computer Science'
+]
 
 const studentsAttempting = [
   { name: 'Aarav Sharma', status: 'In Progress' },
@@ -14,20 +24,33 @@ const studentsAttempting = [
 export default function TestsKioskView() {
   const { classOptions, selectedClass, setSelectedClass, classStudents } = useFilters()
   const [testName, setTestName] = useState('Mathematics - Unit Test 3')
+  const [subject, setSubject] = useState('Mathematics')
   const [recipientStudentId, setRecipientStudentId] = useState('')
   const [sendMessage, setSendMessage] = useState('')
+  const [generatedLink, setGeneratedLink] = useState('')
 
   const recipientStudent = useMemo(
-    () => classStudents.find((student) => student.id === recipientStudentId) || null,
+    () => classStudents.find((student) => student.id === recipientStudentId) || classStudents[0] || null,
     [classStudents, recipientStudentId]
   )
 
-  function handleSendLink() {
-    if (recipientStudent) {
-      setSendMessage(`Test link sent to ${recipientStudent.name} only.`)
+  async function handleSendLink() {
+    const selected = recipientStudent || classStudents[0]
+    if (!selected) {
+      setSendMessage('No student found in this class.')
       return
     }
-    setSendMessage(`Test link sent to all students in class ${classOptions.find((item) => item.id === selectedClass)?.label}.`)
+
+    const sanitizedUserId = TARGET_NUMBER.replace(/[^0-9]/g, '')
+
+    try {
+      const started = await startStudentTest(sanitizedUserId, selected.name, subject)
+      setGeneratedLink(started.link || '')
+      setSendMessage(`Test link for ${subject} sent to ${TARGET_NUMBER}.`)
+    } catch {
+      setGeneratedLink('')
+      setSendMessage('Backend unavailable. Could not create test link.')
+    }
   }
 
   return (
@@ -35,7 +58,7 @@ export default function TestsKioskView() {
       <header className="module-header panel">
         <div>
           <h2>Tests (Kiosk)</h2>
-          <p>Create and monitor tests delivered through digital links.</p>
+          <p>Create and monitor subject-based tests delivered through digital links.</p>
         </div>
       </header>
 
@@ -62,6 +85,17 @@ export default function TestsKioskView() {
                 <select value={testName} onChange={(event) => setTestName(event.target.value)}>
                   <option>Mathematics - Unit Test 3</option>
                   <option>Science - Midterm Revision</option>
+                  <option>English - Grammar Practice</option>
+                  <option>Social Studies - Chapter Test</option>
+                  <option>Computer Science - Lab Quiz</option>
+                </select>
+              </label>
+              <label>
+                Select Subject
+                <select value={subject} onChange={(event) => setSubject(event.target.value)}>
+                  {subjects.map((item) => (
+                    <option key={item}>{item}</option>
+                  ))}
                 </select>
               </label>
               <label>
@@ -77,7 +111,7 @@ export default function TestsKioskView() {
               <label>
                 Select Student (Optional)
                 <select value={recipientStudentId} onChange={(event) => setRecipientStudentId(event.target.value)}>
-                  <option value="">All Students</option>
+                  <option value="">Default student in class</option>
                   {classStudents.map((student) => (
                     <option key={student.id} value={student.id}>
                       {student.name}
@@ -87,7 +121,7 @@ export default function TestsKioskView() {
               </label>
               <button className="generate-btn" type="button" onClick={handleSendLink}>
                 <Send size={16} />
-                Send Link
+                Send Link to {TARGET_NUMBER}
               </button>
               {sendMessage ? <p className="hint-text compact">{sendMessage}</p> : null}
             </div>
@@ -98,9 +132,9 @@ export default function TestsKioskView() {
               </div>
               <p>Hello Parent,</p>
               <p>
-                Test link for {recipientStudent?.name || 'Class 10-A students'} is ready.
+                {subject} test link for {recipientStudent?.name || 'Class 10-A students'} is ready.
                 <br />
-                Click: https://vnr.school/test/{testName.toLowerCase().replace(/\s+/g, '-')}
+                Click: {generatedLink || `${window.location.origin}/#/test/${testName.toLowerCase().replace(/\s+/g, '-')}`}
               </p>
               <small>Sent via VNR Smart School</small>
             </div>

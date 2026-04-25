@@ -9,6 +9,13 @@ export const studentsByClass = {
   ]
 }
 
+export const parentsByStudent = {
+  '1001': { name: 'Rajesh Sharma', relation: 'Father', phone: '+91 98765 10101', email: 'rajesh.sharma@example.com' },
+  '1002': { name: 'Lakshmi Rao', relation: 'Mother', phone: '+91 98765 20202', email: 'lakshmi.rao@example.com' },
+  '1003': { name: 'Sanjay Mehta', relation: 'Father', phone: '+91 98765 30303', email: 'sanjay.mehta@example.com' },
+  '1004': { name: 'Kavita Kapoor', relation: 'Mother', phone: '+91 98765 40404', email: 'kavita.kapoor@example.com' }
+}
+
 export const attendanceFallbackByStudent = {
   '1001': {
     totalDays: 246,
